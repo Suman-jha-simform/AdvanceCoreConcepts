@@ -1,0 +1,111 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Advance_DotNet_Concepts_Keka_Goals.Models;
+using Advance_DotNet_Concepts_Keka_Goals.Interface;
+using Serilog;
+using Asp.Versioning;
+
+namespace Advance_DotNet_Concepts_Keka_Goals.Controllers
+{
+
+    [ApiController]
+    [Route("api/v{version:apiVersion}/[controller]/[action]")]
+    [ApiVersion("2.0")]
+    public class ToDoItemsController : ControllerBase
+    {
+        private readonly IToDoItemUpdated _todoItemContext;
+
+
+        public ToDoItemsController(IToDoItemUpdated todoItemContext)
+        {
+            _todoItemContext = todoItemContext;
+        }
+
+        // GET: api/ToDoItems
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<ToDoItemUpdated>>> GetToDoItems()
+        {
+            var list =  await _todoItemContext.GetToDoItemsAsync();
+            return Ok(list);
+        }
+
+        // PUT: api/ToDoItems/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutToDoItem(int id, ToDoItemUpdated toDoItemUpdated)
+        {
+            if (id != toDoItemUpdated.Id)
+            {
+                Log.Error($"UpdateToDoItem : Item Id {toDoItemUpdated.Id} and given id {id} mismatch");
+                return BadRequest();
+            }
+
+            try
+            {
+               var res = await _todoItemContext.UpdateToDoItem(id, toDoItemUpdated);
+               if(res >= 1)
+               {
+                    Log.Information($"UpdateToDoItem : Item with id {id} updated successfully");
+                    return Ok("Updated Successfully");
+               }
+                else
+                {
+                    Log.Error($"UpdateToDoItem : Item with id {id} was not updated.");
+                    return Problem("Could not be updated.");
+                }
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                var item = await _todoItemContext.GetToDoItemAsync(id);
+                if (item == null)
+                {
+                    Log.Error($"UpdateToDoItem : Item with id {id} generated DbCuncurrencyException");
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
+        // POST: api/ToDoItems
+        [HttpPost]
+        public async Task<ActionResult<ToDoItemUpdated>> PostToDoItem(ToDoItemUpdated toDoItemUpdated)
+        {
+          if (!ModelState.IsValid)
+          {
+                Log.Error($"PostToDoItem : Item with id {toDoItemUpdated.Id} does not have complete details");
+                return Problem("Deatils not found for todo item.");
+          }
+           var res = await _todoItemContext.AddToDoItem(toDoItemUpdated);
+            if (res >= 1)
+            {
+                Log.Information($"PostToDoItem : Item with id {toDoItemUpdated.Id} added successfully");
+                return Ok("Todo Item added successfully.");
+            }
+            Log.Error($"PostToDoItem : Item with id {toDoItemUpdated.Id} cannot not be added");
+            return Problem("Cannot be added");
+        }
+
+        // DELETE: api/ToDoItems/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteToDoItem(int id)
+        {
+            var toDoItem = await _todoItemContext.GetToDoItemAsync(id);
+            if (toDoItem == null)
+            {
+                Log.Error($"DeleteToDoItem : Item with id {id} could not be found");
+                return NotFound("The todo item cannot be found");
+            }
+
+            var res = await _todoItemContext.DeleteToDoItemAsync(toDoItem.Id);
+            if (res >= 1)
+            {
+                Log.Information($"DeleteToDoItem : Item with id {id} deleted successfully.");
+                return Ok("Todo Item deleted successfully.");
+            }
+            Log.Error($"DeleteToDoItem : Item with id {id} could not be deleted.");
+            return Problem("Item cannot be deleted");
+        }
+    }
+}
